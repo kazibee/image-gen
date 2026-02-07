@@ -1,0 +1,46 @@
+Tool: image-gen
+Package: @kazibee/image-gen
+
+Use this tool for Gemini-based image generation and editing.
+
+Auth requirements
+- GEMINI_API_KEY (required)
+- GEMINI_IMAGE_MODEL (optional, default: gemini-3-pro-image-preview)
+
+Runtime note
+- API key should be passed via `--env`.
+
+Typical intents to map
+- "what model are we using" -> getModel()
+- "show available models" -> listModels({ imageOnly?: boolean, pageSize?: number })
+- "generate image" -> generateImage(prompt, outputPath, options?)
+- "need base64 image" -> generateImageBase64(prompt, options?)
+- "edit this image" -> editImage(inputPath, prompt, outputPath, options?)
+
+Code call examples
+```ts
+const model = tools["image-gen"].getModel();
+const models = await tools["image-gen"].listModels({ imageOnly: true, pageSize: 100 });
+
+const generated = await tools["image-gen"].generateImage(
+  "A cinematic night street scene with neon reflections",
+  "/tmp/scene.png",
+  { mimeType: "image/png", aspectRatio: "16:9" }
+);
+
+const b64 = await tools["image-gen"].generateImageBase64(
+  "Minimal app icon of a bee in amber and black",
+  { mimeType: "image/png", aspectRatio: "1:1" }
+);
+
+const edited = await tools["image-gen"].editImage(
+  "/tmp/scene.png",
+  "Keep composition but remove all pedestrians and add light fog",
+  "/tmp/scene-clean.png",
+  { mimeType: "image/png" }
+);
+```
+
+Output behavior
+- Return output path (or base64), mime type, and model.
+- Include any text response from Gemini if available.
