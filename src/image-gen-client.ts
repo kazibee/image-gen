@@ -4,6 +4,8 @@ const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 /** Options for text-to-image generation. */
 export interface GenerateImageOptions {
+  /** Optional per-request model override. */
+  model?: string;
   /** Target aspect ratio hint for the generated image. */
   aspectRatio?: '1:1' | '2:3' | '3:2' | '3:4' | '4:3' | '4:5' | '5:4' | '9:16' | '16:9' | '21:9';
   /** Output image size hint. `2K` and `4K` are primarily for Gemini 3 Pro Image Preview. */
@@ -192,6 +194,7 @@ async function generateImageBase64(
   prompt: string,
   options: GenerateImageOptions,
 ): Promise<GeneratedImageData> {
+  const model = options.model?.trim() || config.model;
   const parts: GeminiPart[] = [{ text: prompt }];
   const responseModalities = options.includeText === false ? ['IMAGE'] : ['IMAGE', 'TEXT'];
   const body = {
@@ -207,8 +210,8 @@ async function generateImageBase64(
     ...(options.enableSearchGrounding ? { tools: [{ google_search: {} }] } : {}),
   };
 
-  const data = await geminiGenerateContent(config, body);
-  return extractImageFromResponse(data, config.model, prompt);
+  const data = await geminiGenerateContent(config, model, body);
+  return extractImageFromResponse(data, model, prompt);
 }
 
 async function editImage(
@@ -218,6 +221,7 @@ async function editImage(
   outputPath: string,
   options: EditImageOptions,
 ): Promise<GeneratedImageResult> {
+  const model = options.model?.trim() || config.model;
   const inputFile = Bun.file(inputPath);
   const exists = await inputFile.exists();
   if (!exists) {
@@ -252,8 +256,8 @@ async function editImage(
     ...(options.enableSearchGrounding ? { tools: [{ google_search: {} }] } : {}),
   };
 
-  const data = await geminiGenerateContent(config, body);
-  const image = extractImageFromResponse(data, config.model, prompt);
+  const data = await geminiGenerateContent(config, model, body);
+  const image = extractImageFromResponse(data, model, prompt);
   await Bun.write(outputPath, Buffer.from(image.base64Data, 'base64'));
 
   return {
@@ -272,6 +276,7 @@ async function generateFromReferences(
   outputPath: string,
   options: ReferenceImageOptions,
 ): Promise<GeneratedImageResult> {
+  const model = options.model?.trim() || config.model;
   if (!inputPaths.length) {
     throw new Error('inputPaths cannot be empty.');
   }
@@ -308,8 +313,8 @@ async function generateFromReferences(
     ...(options.enableSearchGrounding ? { tools: [{ google_search: {} }] } : {}),
   };
 
-  const data = await geminiGenerateContent(config, body);
-  const image = extractImageFromResponse(data, config.model, prompt);
+  const data = await geminiGenerateContent(config, model, body);
+  const image = extractImageFromResponse(data, model, prompt);
   await Bun.write(outputPath, Buffer.from(image.base64Data, 'base64'));
 
   return {
@@ -321,8 +326,12 @@ async function generateFromReferences(
   };
 }
 
-async function geminiGenerateContent(config: AuthConfig, body: object): Promise<GeminiResponse> {
-  const url = `${API_BASE}/models/${encodeURIComponent(config.model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`;
+async function geminiGenerateContent(
+  config: AuthConfig,
+  model: string,
+  body: object,
+): Promise<GeminiResponse> {
+  const url = `${API_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`;
 
   const res = await fetch(url, {
     method: 'POST',

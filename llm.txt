@@ -29,6 +29,7 @@ Typical intents to map
 - "combine these references" -> generateFromReferences(inputPaths, prompt, outputPath, options?)
 
 Option guidance
+- Use `model` option for per-request overrides when task requirements differ.
 - Prefer `aspectRatio` and `imageSize` for output control.
 - Use `includeText: false` when only image output is needed.
 - Use `enableSearchGrounding: true` only when prompt benefits from real-world lookups.
@@ -42,7 +43,12 @@ const models = await tools["image-gen"].listModels({ imageOnly: true, pageSize: 
 const generated = await tools["image-gen"].generateImage(
   "Modern hero shot of running shoes on reflective floor",
   "/tmp/shoes-hero.png",
-  { aspectRatio: "16:9", imageSize: "2K", includeText: true }
+  {
+    model: "gemini-2.5-flash-image",
+    aspectRatio: "16:9",
+    imageSize: "2K",
+    includeText: true
+  }
 );
 
 const base64 = await tools["image-gen"].generateImageBase64(
@@ -54,7 +60,11 @@ const edited = await tools["image-gen"].editImage(
   "/tmp/shoes-hero.png",
   "Preserve the shoes, remove background clutter, add subtle rim lighting",
   "/tmp/shoes-hero-clean.png",
-  { imageSize: "2K", includeText: false }
+  {
+    model: "gemini-3-pro-image-preview",
+    imageSize: "2K",
+    includeText: false
+  }
 );
 
 const composite = await tools["image-gen"].generateFromReferences(

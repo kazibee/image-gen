@@ -84,6 +84,7 @@ const models = await tools["image-gen"].listModels({ imageOnly: true, pageSize: 
 ## Generation Options
 
 Shared options for generation/edit/reference workflows:
+- `model`: per-request model override (for example `gemini-2.5-flash-image`)
 - `aspectRatio`: `1:1 | 2:3 | 3:2 | 3:4 | 4:3 | 4:5 | 5:4 | 9:16 | 16:9 | 21:9`
 - `imageSize`: `1K | 2K | 4K`
 - `includeText`: include textual response from model (`true` by default)
@@ -109,6 +110,7 @@ const result = await tools["image-gen"].generateImage(
   "Studio product shot of a matte-black travel mug on neutral background",
   "/tmp/mug.png",
   {
+    model: "gemini-2.5-flash-image",
     aspectRatio: "1:1",
     imageSize: "2K",
     includeText: true,
@@ -136,6 +138,7 @@ const edited = await tools["image-gen"].editImage(
   "Keep subject identity, change background to clean white and add soft shadow",
   "/tmp/edited.png",
   {
+    model: "gemini-3-pro-image-preview",
     imageSize: "2K",
     includeText: false,
   }
@@ -150,6 +153,7 @@ const composite = await tools["image-gen"].generateFromReferences(
   "Create a single premium ad scene combining style and product references",
   "/tmp/composite.png",
   {
+    model: "gemini-3-pro-image-preview",
     aspectRatio: "16:9",
     imageSize: "2K",
   }
