@@ -4,10 +4,16 @@ const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 /** Options for text-to-image generation. */
 export interface GenerateImageOptions {
-  /** Desired output MIME type. */
-  mimeType?: 'image/png' | 'image/jpeg' | 'image/webp';
   /** Target aspect ratio hint for the generated image. */
-  aspectRatio?: '1:1' | '3:4' | '4:3' | '9:16' | '16:9';
+  aspectRatio?: '1:1' | '2:3' | '3:2' | '3:4' | '4:3' | '4:5' | '5:4' | '9:16' | '16:9' | '21:9';
+  /** Output image size hint. `2K` and `4K` are primarily for Gemini 3 Pro Image Preview. */
+  imageSize?: '1K' | '2K' | '4K';
+  /** Include text response along with image output. */
+  includeText?: boolean;
+  /** Enables Google Search grounding for generation. */
+  enableSearchGrounding?: boolean;
+  /** Optional response mime type override if supported by model/runtime. */
+  mimeType?: 'image/png' | 'image/jpeg' | 'image/webp';
 }
 
 /** Options for image editing/inpainting requests. */
@@ -37,6 +43,12 @@ export interface GeneratedImageData {
   model: string;
   prompt: string;
   textResponse?: string;
+}
+
+/** Options for multi-reference composition/editing requests. */
+export interface ReferenceImageOptions extends GenerateImageOptions {
+  /** Optional mime type for all references. If omitted, each file MIME is inferred. */
+  inputMimeType?: string;
 }
 
 /** Query options for Gemini model discovery. */
@@ -111,6 +123,14 @@ export function createImageGenClient(config: AuthConfig) {
       outputPath: string,
       options: EditImageOptions = {},
     ) => editImage(config, inputPath, prompt, outputPath, options),
+
+    /** Creates/edits an image from multiple reference images plus text instructions. */
+    generateFromReferences: (
+      inputPaths: string[],
+      prompt: string,
+      outputPath: string,
+      options: ReferenceImageOptions = {},
+    ) => generateFromReferences(config, inputPaths, prompt, outputPath, options),
   };
 }
 
@@ -173,13 +193,18 @@ async function generateImageBase64(
   options: GenerateImageOptions,
 ): Promise<GeneratedImageData> {
   const parts: GeminiPart[] = [{ text: prompt }];
+  const responseModalities = options.includeText === false ? ['IMAGE'] : ['IMAGE', 'TEXT'];
   const body = {
     contents: [{ parts }],
     generationConfig: {
-      responseModalities: ['IMAGE', 'TEXT'],
+      responseModalities,
+      imageConfig: {
+        ...(options.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
+        ...(options.imageSize ? { imageSize: options.imageSize } : {}),
+      },
       ...(options.mimeType ? { responseMimeType: options.mimeType } : {}),
-      ...(options.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
     },
+    ...(options.enableSearchGrounding ? { tools: [{ google_search: {} }] } : {}),
   };
 
   const data = await geminiGenerateContent(config, body);
@@ -217,10 +242,70 @@ async function editImage(
       },
     ],
     generationConfig: {
-      responseModalities: ['IMAGE', 'TEXT'],
+      responseModalities: options.includeText === false ? ['IMAGE'] : ['IMAGE', 'TEXT'],
+      imageConfig: {
+        ...(options.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
+        ...(options.imageSize ? { imageSize: options.imageSize } : {}),
+      },
       ...(options.mimeType ? { responseMimeType: options.mimeType } : {}),
-      ...(options.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
     },
+    ...(options.enableSearchGrounding ? { tools: [{ google_search: {} }] } : {}),
+  };
+
+  const data = await geminiGenerateContent(config, body);
+  const image = extractImageFromResponse(data, config.model, prompt);
+  await Bun.write(outputPath, Buffer.from(image.base64Data, 'base64'));
+
+  return {
+    outputPath,
+    mimeType: image.mimeType,
+    model: image.model,
+    prompt: image.prompt,
+    textResponse: image.textResponse,
+  };
+}
+
+async function generateFromReferences(
+  config: AuthConfig,
+  inputPaths: string[],
+  prompt: string,
+  outputPath: string,
+  options: ReferenceImageOptions,
+): Promise<GeneratedImageResult> {
+  if (!inputPaths.length) {
+    throw new Error('inputPaths cannot be empty.');
+  }
+  if (inputPaths.length > 14) {
+    throw new Error('Maximum 14 reference images are supported.');
+  }
+
+  const inlineParts: GeminiPart[] = [];
+  for (const path of inputPaths) {
+    const file = Bun.file(path);
+    const exists = await file.exists();
+    if (!exists) {
+      throw new Error(`Reference image not found: ${path}`);
+    }
+    const mimeType = options.inputMimeType || file.type || 'image/png';
+    const data = Buffer.from(await file.arrayBuffer()).toString('base64');
+    inlineParts.push({ inlineData: { mimeType, data } });
+  }
+
+  const body = {
+    contents: [
+      {
+        parts: [{ text: prompt }, ...inlineParts],
+      },
+    ],
+    generationConfig: {
+      responseModalities: options.includeText === false ? ['IMAGE'] : ['IMAGE', 'TEXT'],
+      imageConfig: {
+        ...(options.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
+        ...(options.imageSize ? { imageSize: options.imageSize } : {}),
+      },
+      ...(options.mimeType ? { responseMimeType: options.mimeType } : {}),
+    },
+    ...(options.enableSearchGrounding ? { tools: [{ google_search: {} }] } : {}),
   };
 
   const data = await geminiGenerateContent(config, body);
@@ -241,7 +326,10 @@ async function geminiGenerateContent(config: AuthConfig, body: object): Promise<
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': config.apiKey,
+    },
     body: JSON.stringify(body),
   });
 

@@ -9,6 +9,7 @@ export type {
   GeneratedImageData,
   ListModelsOptions,
   GeminiModelInfo,
+  ReferenceImageOptions,
 } from './image-gen-client';
 
 export default function main(env: Env) {

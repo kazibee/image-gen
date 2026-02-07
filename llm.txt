@@ -1,21 +1,38 @@
 Tool: image-gen
 Package: @kazibee/image-gen
 
-Use this tool for Gemini-based image generation and editing.
+Use this tool for Gemini-based image generation, image editing, and multi-reference image composition.
 
 Auth requirements
 - GEMINI_API_KEY (required)
 - GEMINI_IMAGE_MODEL (optional, default: gemini-3-pro-image-preview)
 
 Runtime note
-- API key should be passed via `--env`.
+- Use persistent env when possible:
+  - kazibee env image-gen --set GEMINI_API_KEY=...
+  - kazibee env image-gen --set GEMINI_IMAGE_MODEL=...
+- Use `--env` for one-off overrides.
+
+Primary capabilities
+- model selection introspection: getModel
+- model discovery by API key access: listModels
+- text-to-image: generateImage / generateImageBase64
+- single-image edit: editImage
+- multi-image composition/edit: generateFromReferences
 
 Typical intents to map
-- "what model are we using" -> getModel()
-- "show available models" -> listModels({ imageOnly?: boolean, pageSize?: number })
-- "generate image" -> generateImage(prompt, outputPath, options?)
-- "need base64 image" -> generateImageBase64(prompt, options?)
-- "edit this image" -> editImage(inputPath, prompt, outputPath, options?)
+- "which model is active" -> getModel()
+- "what image models can I use" -> listModels({ imageOnly: true, pageSize: 100 })
+- "generate a new image" -> generateImage(prompt, outputPath, options?)
+- "return image as base64" -> generateImageBase64(prompt, options?)
+- "edit this input image" -> editImage(inputPath, prompt, outputPath, options?)
+- "combine these references" -> generateFromReferences(inputPaths, prompt, outputPath, options?)
+
+Option guidance
+- Prefer `aspectRatio` and `imageSize` for output control.
+- Use `includeText: false` when only image output is needed.
+- Use `enableSearchGrounding: true` only when prompt benefits from real-world lookups.
+- For compatibility, start simple and add options incrementally.
 
 Code call examples
 ```ts
@@ -23,24 +40,32 @@ const model = tools["image-gen"].getModel();
 const models = await tools["image-gen"].listModels({ imageOnly: true, pageSize: 100 });
 
 const generated = await tools["image-gen"].generateImage(
-  "A cinematic night street scene with neon reflections",
-  "/tmp/scene.png",
-  { mimeType: "image/png", aspectRatio: "16:9" }
+  "Modern hero shot of running shoes on reflective floor",
+  "/tmp/shoes-hero.png",
+  { aspectRatio: "16:9", imageSize: "2K", includeText: true }
 );
 
-const b64 = await tools["image-gen"].generateImageBase64(
-  "Minimal app icon of a bee in amber and black",
-  { mimeType: "image/png", aspectRatio: "1:1" }
+const base64 = await tools["image-gen"].generateImageBase64(
+  "Minimal bee icon, flat design, amber + black",
+  { aspectRatio: "1:1", mimeType: "image/png" }
 );
 
 const edited = await tools["image-gen"].editImage(
-  "/tmp/scene.png",
-  "Keep composition but remove all pedestrians and add light fog",
-  "/tmp/scene-clean.png",
-  { mimeType: "image/png" }
+  "/tmp/shoes-hero.png",
+  "Preserve the shoes, remove background clutter, add subtle rim lighting",
+  "/tmp/shoes-hero-clean.png",
+  { imageSize: "2K", includeText: false }
+);
+
+const composite = await tools["image-gen"].generateFromReferences(
+  ["/tmp/ref-style.png", "/tmp/ref-product.png"],
+  "Create one polished e-commerce banner combining both references",
+  "/tmp/banner.png",
+  { aspectRatio: "16:9", imageSize: "2K" }
 );
 ```
 
 Output behavior
-- Return output path (or base64), mime type, and model.
-- Include any text response from Gemini if available.
+- Always return actionable metadata (`model`, `mimeType`, and `outputPath` or `base64Data`).
+- Include `textResponse` when present.
+- If generation fails, return the root API error details and suggest a model check via `listModels`.
