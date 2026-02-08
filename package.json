@@ -4,6 +4,9 @@
   "type": "module",
   "main": "./src/index.ts",
   "command": "./src/command.ts",
+  "kazibee": {
+    "permissions": "./permissions.json"
+  },
   "devDependencies": {
     "@types/bun": "^1.3.8"
   }
