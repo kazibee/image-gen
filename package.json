@@ -5,6 +5,7 @@
   "main": "./src/index.ts",
   "command": "./src/command.ts",
   "kazibee": {
+    "description": "Generate and edit images using Google Gemini API with text prompts and reference images.",
     "permissions": "./permissions.json"
   },
   "devDependencies": {
